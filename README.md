@@ -18,7 +18,7 @@
 ```bash
 pkg update && pkg upgrade
 pkg install python git
-git clone https://github.com/username/DDoS-Anime-Tool
+git clone https://github.com/Arxuoi/shenxddos/tree/main
 cd DDoS-Anime-Tool
 pip install -r requirements.txt
 python ddos_anime.py
